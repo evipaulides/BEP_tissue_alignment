@@ -28,7 +28,7 @@ for filename, value in rotation_info.items():
         max_dim = max(w, h)
 
         # Create white square canvas
-        square_img = Image.new("RGBA", (max_dim, max_dim), (255, 255, 255, 255))
+        square_img = Image.new("RGBA", (max_dim, max_dim), (245, 245, 245, 255))
         x_offset = (max_dim - w) // 2
         y_offset = (max_dim - h) // 2
         square_img.paste(rotated, (x_offset, y_offset), rotated)
