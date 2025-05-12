@@ -1,42 +1,122 @@
 import os
 import json
 from PIL import Image, ImageOps
+import matplotlib.pyplot as plt
 
 
-# Load the rotation info
-with open('data/image_rotations/image_rotations_HE.json', 'r') as f:
-    rotation_info = json.load(f)
+def rotate_image(img, mask, value):
+    # Check if the image is in RGBA mode
+    if img.mode != 'RGBA':
+        # Convert to RGBA if not already in that mode
+        img = img.convert("RGBA")
 
-input_dir = '../tissue_alignment/data/images/HE_crops_masked'
-output_dir = 'data/HE_images_rotated'
-os.makedirs(output_dir, exist_ok=True)
+    # Check if the mask is in RGBA mode
+    if mask.mode != 'L':
+        # Convert to RGBA if not already in that mode
+        mask = mask.convert("L")
 
-for filename, value in rotation_info.items():
-    input_path = os.path.join(input_dir, filename)
-    output_path = os.path.join(output_dir, filename)
+    # Rotate the image
+    rotated = img.rotate(-value, expand=True, resample=Image.BICUBIC, fillcolor=(245, 245, 245, 255))
+    rotated_mask = mask.rotate(-value, expand=True, resample=Image.NEAREST, fillcolor=0)
 
-    # Skip images if marked as "skipped"
-    if isinstance(value, dict) and "skipped" in value:
-        print(f"Skipping {filename} due to 'skipped' flag.")
-        continue
+    # Crop mask to the size of white pixels
+    bbox = rotated_mask.getbbox()
+    if bbox:
+        cropped_mask = rotated_mask.crop(bbox)
+    else:
+        print("No white pixels found in the mask. Skipping cropping.")
+        return img
+    
+    # Reduce the image to the size of the mask
+    img_cropped = rotated.crop(bbox)
+    if img_cropped.size != cropped_mask.size:
+        print(f"Image and mask sizes do not match after cropping: {img_cropped.size} vs {cropped_mask.size}.")
+        return img
+    
+    # Convert to RGB (remove alpha) and save
+    img_cropped = img_cropped.convert("RGB")
 
-    try:
-        img = Image.open(input_path).convert("RGBA")
-        rotated = img.rotate(-value, expand=True)
+    return img_cropped, cropped_mask
 
-        w, h = rotated.size
-        max_dim = max(w, h)
+def cropped_image_to_input(img, mask):
+    #  Add padding until the image is a multiple of 16
+    target_size = 16
+    width, height = img.size
+    new_width = (width + target_size - 1) // target_size * target_size
+    new_height = (height + target_size - 1) // target_size * target_size
+    padded_img = Image.new("RGB", (new_width, new_height), (245, 245, 245))
+    padded_img.paste(img, ((new_width - width) // 2, (new_height - height) // 2))
 
-        # Create white square canvas
-        square_img = Image.new("RGBA", (max_dim, max_dim), (245, 245, 245, 255))
-        x_offset = (max_dim - w) // 2
-        y_offset = (max_dim - h) // 2
-        square_img.paste(rotated, (x_offset, y_offset), rotated)
+    # add 0 padding to the mask to make it the same size as the image
+    padded_mask = Image.new("L", (new_width, new_height), 0)
+    padded_mask.paste(mask, ((new_width - width) // 2, (new_height - height) // 2))
+    
+    return padded_img, padded_mask
 
-        # Convert to RGB (remove alpha) and save
-        final_img = square_img.convert("RGB")
-        final_img.save(output_path)
+def plot_images(img, mask, img_input, mask_input):
+    fig, axes = plt.subplots(2, 2, figsize=(10, 5))
 
-    except Exception as e:
-        print(f"Error processing {filename}: {e}")
-        continue
+    axes[0,0].imshow(img)
+    axes[0,0].set_title("Image")
+    axes[0,0].axis("off")
+
+    axes[0,1].imshow(mask, cmap="gray")
+    axes[0,1].set_title("Mask")
+    axes[0,1].axis("off")
+
+    axes[1,0].imshow(img_input)
+    axes[1,0].set_title("Padded Image")
+    axes[1,0].axis("off")
+
+    axes[1,1].imshow(mask_input, cmap="gray")
+    axes[1,1].set_title("Padded Mask")
+    axes[1,1].axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+
+    # Load the rotation info
+    with open('data/image_rotations/image_rotations_IHC.json', 'r') as f:
+        rotation_info = json.load(f)
+
+    input_dir = '../tissue_alignment/data/images/IHC_crops_masked'
+    input_mask_dir = '../tissue_alignment/data/annotations/IHC_crops'
+    output_dir = 'data/HE_images_rotated'
+    output_mask_dir = 'data/HE_masks_rotated'
+    os.makedirs(output_dir, exist_ok=True)
+
+    #counter = 0
+
+    for filename, value in rotation_info.items():
+        input_path = os.path.join(input_dir, filename)
+        output_path = os.path.join(output_dir, filename)
+        mask_path = os.path.join(input_mask_dir, filename)
+
+        # Skip images if marked as "skipped"
+        if isinstance(value, dict) and "skipped" in value:
+            print(f"Skipping {filename} due to 'skipped' flag.")
+            continue
+
+        try:
+            img = Image.open(input_path)
+            mask = Image.open(mask_path)
+            img, mask = rotate_image(img, mask, value)
+
+            img_input, mask_input = cropped_image_to_input(img, mask)
+            
+            #print the size of the resulting image and mask
+            #print(f"Image size: {img_input.size}, Mask size: {mask_input.size}")
+
+            # Save image and mask
+            img_input.save(os.path.join(output_dir, filename))
+            mask_input.save(os.path.join(output_mask_dir, filename))
+
+            #counter += 1
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+            continue
+
+        #if counter >= 2:
+            #break
