@@ -78,13 +78,14 @@ def plot_images(img, mask, img_input, mask_input):
 if __name__ == "__main__":
 
     # Load the rotation info
-    with open('data/image_rotations/image_rotations_IHC.json', 'r') as f:
+    # with open('data/image_rotations/image_rotations_IHC_pt4.json', 'r') as f:
+    with open('image_rotations_HE_strip.json', 'r') as f:
         rotation_info = json.load(f)
 
-    input_dir = '../tissue_alignment/data/images/IHC_crops_masked'
-    input_mask_dir = '../tissue_alignment/data/annotations/IHC_crops'
-    output_dir = 'data/IHC_images_rotated'
-    output_mask_dir = 'data/IHC_masks_rotated'
+    input_dir = '../tissue_alignment/data/images/HE_crops_masked'
+    input_mask_dir = '../tissue_alignment/data/annotations/HE_crops'
+    output_dir = 'data/HE_images_rotated'
+    output_mask_dir = 'data/HE_masks_rotated'
     os.makedirs(output_dir, exist_ok=True)
 
     #counter = 0
@@ -98,6 +99,8 @@ if __name__ == "__main__":
         if isinstance(value, dict) and "skipped" in value:
             print(f"Skipping {filename} due to 'skipped' flag.")
             continue
+        # if filename.split('_')[0] != '2074':
+        #     continue
 
         try:
             img = Image.open(input_path)

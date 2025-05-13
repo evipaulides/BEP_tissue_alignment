@@ -2,7 +2,7 @@ import json
 import os
 import re
 
-files = ['image_rotations_e.json', 'image_rotations_r.json', 'image_rotations.json']
+files = ['data/image_rotations/image_rotations_HE_pt4.json',]
 merged = {}
 
 # Merge and normalize
@@ -30,5 +30,5 @@ sorted_items = sorted(merged.items(), key=lambda item: extract_sort_key(item[0])
 # Write final JSON
 final_output = {k: v for k, v in sorted_items}
 
-with open('image_rotations_HE.json', 'w') as out:
+with open('image_rotations_HE_strip.json', 'w') as out:
     json.dump(final_output, out, indent=4)

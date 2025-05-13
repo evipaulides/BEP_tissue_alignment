@@ -23,7 +23,7 @@ def collect_images_with_empty_values(json_path, source_folder, dest_folder):
                     print(f"Copied: {file_name}")
 
 collect_images_with_empty_values(
-    json_path='image_matches.json',
+    json_path='image_matches_e.json',
     source_folder='data/HE_images_rotated',
     dest_folder='data/HE_empty_match'
 )

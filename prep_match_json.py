@@ -55,9 +55,8 @@ def strip_path(merged):
 
 if __name__ == "__main__":
     json_files = [
-        'data/image_matches/image_matches.json',
-        'data/image_matches/image_matches_e.json',
-        'data/image_matches/image_matches_r.json',
+        'image_matches_new.json',
+        'new_image_matches.json'
     ]
     output_path='image_matches.json'
 
