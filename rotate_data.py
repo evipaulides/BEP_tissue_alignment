@@ -83,8 +83,8 @@ if __name__ == "__main__":
 
     input_dir = '../tissue_alignment/data/images/IHC_crops_masked'
     input_mask_dir = '../tissue_alignment/data/annotations/IHC_crops'
-    output_dir = 'data/HE_images_rotated'
-    output_mask_dir = 'data/HE_masks_rotated'
+    output_dir = 'data/IHC_images_rotated'
+    output_mask_dir = 'data/IHC_masks_rotated'
     os.makedirs(output_dir, exist_ok=True)
 
     #counter = 0
