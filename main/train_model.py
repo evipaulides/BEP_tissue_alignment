@@ -7,29 +7,35 @@ from torchvision import transforms
 from transformers import ViTModel
 import pandas as pd
 from PIL import Image
-from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
-
+import random
+from torchvision.transforms import functional as TF
 
 # ------------------------ Dataset ------------------------ #
 class MultiStainPairDataset(Dataset):
-    def __init__(self, dataframe, transform=None):
-        self.df = dataframe.reset_index(drop=True)
+    def __init__(self, csv_path, he_dir, ihc_dir, transform=None):
+        self.df = pd.read_csv(csv_path).reset_index(drop=True)
+        self.he_dir = he_dir
+        self.ihc_dir = ihc_dir
         self.transform = transform
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
-        he_img = Image.open(self.df.loc[idx, "he_path"]).convert("RGB")
-        ihc_img = Image.open(self.df.loc[idx, "ihc_path"]).convert("RGB")
+        he_name = self.df.loc[idx, "HE"]
+        ihc_name = self.df.loc[idx, "IHC"]
+
+        he_path = os.path.join(self.he_dir, he_name)
+        ihc_path = os.path.join(self.ihc_dir, ihc_name)
+
+        he_img = Image.open(he_path).convert("RGB")
+        ihc_img = Image.open(ihc_path).convert("RGB")
 
         if self.transform:
-            he_img = self.transform(he_img)
-            ihc_img = self.transform(ihc_img)
+            he_img, ihc_img = self.transform(he_img, ihc_img)
 
         return he_img, ihc_img
-
 
 # ------------------------ Model ------------------------ #
 class MLPHead(nn.Module):
@@ -44,7 +50,6 @@ class MLPHead(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-
 class MultiStainContrastiveModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -58,7 +63,6 @@ class MultiStainContrastiveModel(nn.Module):
         z_ihc = self.encoder_ihc(pixel_values=img_ihc).last_hidden_state[:, 0]
         return F.normalize(self.proj_he(z_he), dim=-1), F.normalize(self.proj_ihc(z_ihc), dim=-1)
 
-
 def contrastive_loss(z1, z2, temperature=0.1):
     sim = z1 @ z2.T / temperature
     labels = torch.arange(z1.size(0)).to(z1.device)
@@ -66,27 +70,73 @@ def contrastive_loss(z1, z2, temperature=0.1):
     loss_b = F.cross_entropy(sim.T, labels)
     return (loss_a + loss_b) / 2
 
+# ------------------------ Transform ------------------------ #
+class PairTransform:
+    def __call__(self, img1, img2):
+        # Random horizontal flip
+        if random.random() > 0.5:
+            img1 = TF.hflip(img1)
+            img2 = TF.hflip(img2)
 
-# ------------------------ Main Function ------------------------ #
+        # Random vertical flip
+        if random.random() > 0.5:
+            img1 = TF.vflip(img1)
+            img2 = TF.vflip(img2)
+
+        # Random small rotation (e.g. -5 to +5 degrees)
+        angle = random.uniform(-5, 5)
+        img1 = TF.rotate(img1, angle, interpolation=TF.InterpolationMode.BILINEAR)
+        img2 = TF.rotate(img2, angle, interpolation=TF.InterpolationMode.BILINEAR)
+
+        # Color jitter (same parameters for both images)
+        brightness = random.uniform(0.9, 1.1)
+        contrast = random.uniform(0.9, 1.1)
+        saturation = random.uniform(0.9, 1.1)
+        hue = random.uniform(-0.02, 0.02)
+
+        img1 = TF.adjust_brightness(img1, brightness)
+        img2 = TF.adjust_brightness(img2, brightness)
+
+        img1 = TF.adjust_contrast(img1, contrast)
+        img2 = TF.adjust_contrast(img2, contrast)
+
+        img1 = TF.adjust_saturation(img1, saturation)
+        img2 = TF.adjust_saturation(img2, saturation)
+
+        img1 = TF.adjust_hue(img1, hue)
+        img2 = TF.adjust_hue(img2, hue)
+
+        # To tensor and normalize
+        img1 = TF.to_tensor(img1)
+        img2 = TF.to_tensor(img2)
+
+        img1 = TF.normalize(img1, mean=[0.5]*3, std=[0.5]*3)
+        img2 = TF.normalize(img2, mean=[0.5]*3, std=[0.5]*3)
+
+        return img1, img2
+
+
+# ------------------------ Main Function ------------------------ #   
 if __name__ == "__main__":
     # Config
     EPOCHS = 10
-    BATCH_SIZE = 8
+    BATCH_SIZE = 1
     LR = 3e-5
+    ACCUMULATION_STEPS = 8
     CHECKPOINT_DIR = "checkpoints"
-    os.makedirs(CHECKPOINT_DIR, exist_ok=True) 
+    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
-    # Data
-    df = pd.read_csv("dataset/pairs.csv")  # Make sure this file exists!
-    train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
+    # Load your prepared splits
+    train_csv = "data/data_split/train_matches.csv"
+    val_csv = "data/data_split/val_matches.csv"
 
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
-    ])
+    he_dir = "data/HE_images_matched"
+    ihc_dir = "data/IHC_images_matched"
 
-    train_data = MultiStainPairDataset(train_df, transform=transform)
-    val_data = MultiStainPairDataset(val_df, transform=transform)
+    transform = PairTransform()
+
+    train_data = MultiStainPairDataset(train_csv, he_dir, ihc_dir, transform=transform)
+    val_data = MultiStainPairDataset(val_csv, he_dir, ihc_dir, transform=transform)
 
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False)
@@ -101,14 +151,20 @@ if __name__ == "__main__":
     for epoch in range(EPOCHS):
         model.train()
         total_train = 0
-        for he, ihc in train_loader:
+        optimizer.zero_grad()
+        for step, (he, ihc) in enumerate(train_loader):
             he, ihc = he.to(device), ihc.to(device)
             z_he, z_ihc = model(he, ihc)
             loss = contrastive_loss(z_he, z_ihc)
-            optimizer.zero_grad()
+            loss = loss / ACCUMULATION_STEPS
             loss.backward()
-            optimizer.step()
             total_train += loss.item()
+
+            if (step + 1) % ACCUMULATION_STEPS == 0 or (step + 1) == len(train_loader):
+                optimizer.step()
+                optimizer.zero_grad()
+
+        # Average loss for the epoch    
         train_losses.append(total_train / len(train_loader))
 
         model.eval()
@@ -139,4 +195,3 @@ if __name__ == "__main__":
     plt.grid(True)
     plt.savefig(os.path.join(CHECKPOINT_DIR, "loss_plot.png"))
     plt.show()
-
