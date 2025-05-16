@@ -118,8 +118,8 @@ class PositionalEmbedder(nn.Module):
             [torch.zeros((B, 1, self.embed_dim), device=device), pos_embedding], dim=1,
         )
         
-        plt.imshow(pos_embedding[0, ...])
-        plt.show()
+        # plt.imshow(pos_embedding[0, ...])
+        # plt.show()
 
         # check if the shape of the features and positional embeddings match
         if x.shape != pos_embedding.shape:
@@ -134,11 +134,37 @@ class PositionalEmbedder(nn.Module):
 
 
 class MultiStainContrastiveModel(nn.Module):
-    def __init__(self, MODEL_NAME, patch_size=16):
+    def __init__(self, MODEL_NAME, patch_size=16, dropout_prob=0.1):	
         super().__init__()
         self.encoder_he = timm.create_model(MODEL_NAME, pretrained=True, num_classes=0)
         self.encoder_ihc = timm.create_model(MODEL_NAME, pretrained=True, num_classes=0)
         hidden_size = self.encoder_he.embed_dim
+
+        # Remove internal patch embedding
+        self.encoder_he.patch_embed = nn.Identity()
+        self.encoder_ihc.patch_embed = nn.Identity()
+        self.encoder_he.pos_drop = nn.Identity()
+        self.encoder_ihc.pos_drop = nn.Identity()
+        self.encoder_he.head = nn.Identity()
+        self.encoder_ihc.head = nn.Identity()
+        self.encoder_he.pos_embed = None
+        self.encoder_ihc.pos_embed = None
+
+        # Keep cls_token, pos_embed, drop, block, and norm layers
+        self.cls_token_HE = self.encoder_he.cls_token
+        self.cls_token_IHC = self.encoder_ihc.cls_token
+        self.blocks_HE = self.encoder_he.blocks
+        self.blocks_IHC = self.encoder_ihc.blocks
+        self.norm_HE = self.encoder_he.norm
+        self.norm_IHC = self.encoder_ihc.norm
+
+        # Dropout
+        self.dropout_he = nn.Dropout(p=dropout_prob)
+        self.dropout_ihc = nn.Dropout(p=dropout_prob)
+
+        # Positional embedding
+        self.pos_embed_HE = PositionalEmbedder(embed_dim=hidden_size, dropout_prob=dropout_prob)
+        self.pos_embed_IHC = PositionalEmbedder(embed_dim=hidden_size, dropout_prob=dropout_prob)
 
         # Patchify images
         self.patch_embed = nn.Conv2d(
@@ -152,6 +178,8 @@ class MultiStainContrastiveModel(nn.Module):
         self.proj_ihc = MLPHead(in_dim=hidden_size, out_dim=256)
 
     def forward(self, img_he, img_ihc):
+        
+
         z_he = self.encoder_he(img_he)
         z_ihc = self.encoder_ihc(img_ihc)
         return F.normalize(self.proj_he(z_he), dim=-1), F.normalize(self.proj_ihc(z_ihc), dim=-1)
