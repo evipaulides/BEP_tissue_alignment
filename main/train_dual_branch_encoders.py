@@ -12,7 +12,6 @@ from torchvision.transforms import functional as TF
 import timm
 import random
 
-
 # ------------------------ Dataset ------------------------ #    
 class TripletStainDataset(Dataset):
     """
@@ -242,6 +241,7 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
         for step, ((he_img, he_pos, ihc_match, ihc_match_pos, ihc_neg, ihc_neg_pos), (ihc_img, ihc_pos, he_match, he_match_pos, he_neg, he_neg_pos)) in enumerate(zip(loader_he, loader_ihc)):
             if step > 10: # For testing purposes, remove this line in production
                 break
+            print('step', step)
             he_img, ihc_match, ihc_neg, ihc_img, he_match, he_neg = he_img.to(device), ihc_match.to(device), ihc_neg.to(device), ihc_img.to(device), he_match.to(device), he_neg.to(device)
             he_pos, ihc_match_pos, ihc_neg_pos, ihc_pos, he_match_pos, he_neg_pos = he_pos.to(device), ihc_match_pos.to(device), ihc_neg_pos.to(device), ihc_pos.to(device), he_match_pos.to(device), he_neg_pos.to(device)
 
@@ -254,10 +254,11 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
             z_pos_he   = model_he(he_match, he_match_pos)             # IHC (match)
             z_neg_he   = model_he(he_neg, he_neg_pos)             # IHC (non-match)
 
+            print('start loss')
             loss_he  = F.triplet_margin_loss(z_anchor_he, z_pos_ihc, z_neg_ihc)
             loss_ihc = F.triplet_margin_loss(z_anchor_ihc, z_pos_he, z_neg_he)
             loss = (loss_he + loss_ihc) / 2
-
+            print('end loss')
             
             loss = loss / accumulation_steps
             
@@ -271,6 +272,7 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
         avg_loss = total_loss / len(loader_he)
         train_losses.append(avg_loss)
 
+        print('start validation')
         # Validation
         model_he.eval()
         model_ihc.eval()
@@ -307,126 +309,6 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
 
     return model_he, model_ihc, train_losses, val_losses
 
-## ------------------------ Matching function ---------------------- ##
-# ---------------------- Matching head ----------------------------- #
-class MatchingHead(nn.Module):
-    def __init__(self, embed_dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(embed_dim * 2, embed_dim),
-            nn.ReLU(),
-            nn.Linear(embed_dim, 1),
-            nn.Sigmoid()
-        )
-
-    def forward(self, z1, z2):
-        x = torch.cat([z1, z2], dim=1)  # shape (B, 2D)
-        return self.net(x)              # shape (B, 1), match probability
-    
-# ---------------- Dataset for match classification ----------------- #
-class MatchPairDataset(Dataset):
-    def __init__(self, csv_path, he_dir, ihc_dir, transform=None):
-        self.df = pd.read_csv(csv_path).reset_index(drop=True)
-        self.he_dir = he_dir
-        self.ihc_dir = ihc_dir
-        self.transform = transform
-        self.match_map = {
-            row['HE']: row['IHC'] for _, row in self.df.iterrows()
-        }
-        self.he_files = list(self.match_map.keys())
-        self.ihc_files = list(self.match_map.values())
-
-    def __len__(self):
-        return len(self.df) * 2  # Half match, half non-match
-
-    def __getitem__(self, idx):
-        is_match = idx % 2 == 0
-
-        if is_match:
-            he_name = self.he_files[idx // 2]
-            ihc_name = self.match_map[he_name]
-            label = 1
-        else:
-            he_name = random.choice(self.he_files)
-            ihc_name = random.choice([f for f in self.ihc_files if f != self.match_map[he_name]])
-            label = 0
-
-        he_path = os.path.join(self.he_dir, he_name)
-        ihc_path = os.path.join(self.ihc_dir, ihc_name)
-
-        he_img = Image.open(he_path).convert("RGB")
-        ihc_img = Image.open(ihc_path).convert("RGB")
-
-        if self.transform:
-            he_img = self.transform(he_img)
-            ihc_img = self.transform(ihc_img)
-        else:
-            he_img = TF.to_tensor(he_img)
-            ihc_img = TF.to_tensor(ihc_img)
-
-        return he_img, ihc_img, label
-    
-# -------------------------- Training --------------------------- #
-def train_match_head(model_he, model_ihc, match_head, train_loader,val_loader, optimizer, device, EPOCHS, ACCUMULATION_STEPS):
-    model_he.eval()
-    model_ihc.eval()
-    match_head.train()
-
-    train_losses = []
-    val_losses = []
-
-    for epoch in range(EPOCHS):
-        total_loss = 0
-        optimizer.zero_grad()
-
-        for step, (he_img, ihc_img, labels) in enumerate(train_loader):
-            he_img = he_img.to(device)
-            ihc_img = ihc_img.to(device)
-            labels = labels.float().unsqueeze(1).to(device)
-
-            with torch.no_grad():
-                z_he = model_he(he_img, pos=None)  # adjust if you still use positional embeddings
-                z_ihc = model_ihc(ihc_img, pos=None)
-
-            pred = match_head(z_he, z_ihc)
-            loss = F.binary_cross_entropy(pred, labels) / ACCUMULATION_STEPS
-            loss.backward()
-            total_loss += loss.item() * ACCUMULATION_STEPS
-
-            if (step + 1) % ACCUMULATION_STEPS == 0 or (step + 1) == len(train_loader):
-                optimizer.step()
-                optimizer.zero_grad()
-
-        avg_train_loss = total_loss / len(train_loader)
-        train_losses.append(avg_train_loss)
-
-        # Validation
-        match_head.eval()
-        val_loss = 0
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for he_img, ihc_img, labels in val_loader:
-                he_img = he_img.to(device)
-                ihc_img = ihc_img.to(device)
-                labels = labels.float().unsqueeze(1).to(device)
-
-                z_he = model_he(he_img, pos=None)
-                z_ihc = model_ihc(ihc_img, pos=None)
-                pred = match_head(z_he, z_ihc)
-                val_loss += F.binary_cross_entropy(pred, labels).item()
-
-                predicted = (pred > 0.5).float()
-                correct += (predicted == labels).sum().item()
-                total += labels.size(0)
-
-        avg_val_loss = val_loss / len(val_loader)
-        val_losses.append(avg_val_loss)
-        val_acc = correct / total
-        print(f"Epoch {epoch+1}: Train Loss = {avg_train_loss:.4f} | Val Loss = {avg_val_loss:.4f} | Val Acc = {val_acc:.2%}")
-
-    return match_head, train_losses, val_losses
-
 # ------------------------ Plotting Function ------------------------ #
 def plot_losses(train_losses, val_losses):
     plt.figure(figsize=(10, 5))
@@ -446,8 +328,6 @@ def save_model(model, checkpoint_dir, model_name):
     # Save losses
     torch.save(train_losses, os.path.join(checkpoint_dir, "train_losses.pth"))
     torch.save(val_losses, os.path.join(checkpoint_dir, "val_losses.pth"))
-    
-
 
 
 # ------------------------ Main Function ------------------------ #   
@@ -501,22 +381,7 @@ if __name__ == "__main__":
     print("start training")
     # Training
     model_he, model_ihc, train_losses, val_losses = train_dual_encoder(model_he, model_ihc, train_loader_HE, train_loader_IHC, val_loader_HE, val_loader_IHC, optimizer, device, epochs=EPOCHS, checkpoint_dir=CHECKPOINT_DIR, accumulation_steps=ACCUMULATION_STEPS)
-
-    ### M A T C H I N G  H E A D ###
-    # Matching head
-    match_head = MatchingHead(embed_dim=model_he.embed_dim).to(device)
-    match_optimizer = torch.optim.AdamW(match_head.parameters(), lr=LR)
-    match_train_dataset = MatchPairDataset(train_csv, he_dir, ihc_dir)
-    match_val_dataset = MatchPairDataset(val_csv, he_dir, ihc_dir)
-    match_train_loader = DataLoader(match_train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    match_val_loader = DataLoader(match_val_dataset, batch_size=BATCH_SIZE, shuffle=False)
-    match_head, train_losses, val_losses = train_match_head(model_he, model_ihc, match_head, match_train_loader, match_val_loader, match_optimizer, device, EPOCHS, ACCUMULATION_STEPS)
-    # Save the match head
-    save_model(match_head, CHECKPOINT_DIR, "match_head")
-    # Save the optimizer state
-    torch.save(match_optimizer.state_dict(), os.path.join(CHECKPOINT_DIR, "match_optimizer.pth"))
-    ### ----------------------------------- ###
-
+    print("end training")
 
     # Save the model
     save_model(model_he, CHECKPOINT_DIR, "model_he")
@@ -524,21 +389,3 @@ if __name__ == "__main__":
     
     # Plot losses
     plot_losses(train_losses, val_losses)
-
-
-
-    # model_he.eval()
-    # model_ihc.eval()
-
-    # data_iter_he = iter(train_loader_HE)
-    # data_iter_ihc = iter(train_loader_IHC)
-    # he_img, he_pos = next(data_iter_he)
-    # ihc_img, ihc_pos = next(data_iter_ihc)
-
-    # with torch.no_grad():
-    #     he_output = model_he(he_img, he_pos)
-    #     ihc_output = model_ihc(ihc_img, ihc_pos)
-    #     print('predicted he output', he_output.shape)
-    #     print('predicted ihc output', ihc_output)
-    #     print(he_img.shape)
-
