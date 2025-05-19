@@ -11,6 +11,7 @@ import random
 from torchvision.transforms import functional as TF
 import timm
 import random
+import numpy as np
 
 # ------------------------ Dataset ------------------------ #    
 class TripletStainDataset(Dataset):
@@ -239,7 +240,7 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
         total_loss = 0
         optimizer.zero_grad()
         for step, ((he_img, he_pos, ihc_match, ihc_match_pos, ihc_neg, ihc_neg_pos), (ihc_img, ihc_pos, he_match, he_match_pos, he_neg, he_neg_pos)) in enumerate(zip(loader_he, loader_ihc)):
-            if step > 10: # For testing purposes, remove this line in production
+            if step > 1: # For testing purposes, remove this line in production
                 break
             print('step', step)
             he_img, ihc_match, ihc_neg, ihc_img, he_match, he_neg = he_img.to(device), ihc_match.to(device), ihc_neg.to(device), ihc_img.to(device), he_match.to(device), he_neg.to(device)
@@ -264,7 +265,7 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
             
             loss.backward()
             total_loss += loss.item()
-
+            print('backward done')
             if (step + 1) % accumulation_steps == 0 or (step + 1) == len(loader_he):
                 optimizer.step()
                 optimizer.zero_grad()
@@ -278,17 +279,27 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
         model_ihc.eval()
         val_loss = 0
         with torch.no_grad():
-            for i, ((he_img, he_pos), (ihc_img, ihc_pos)) in enumerate(zip(val_loader_he, val_loader_ihc)):
-                if i > 10:
+            for step, ((he_img, he_pos, ihc_match, ihc_match_pos, ihc_neg, ihc_neg_pos), (ihc_img, ihc_pos, he_match, he_match_pos, he_neg, he_neg_pos)) in enumerate(zip(val_loader_he, val_loader_ihc)):
+                if step > 1:
                     break
 
-                he_img, ihc_img = he_img.to(device), ihc_img.to(device)
-                he_pos, ihc_pos = he_pos.to(device), ihc_pos.to(device)
+                he_img, ihc_match, ihc_neg, ihc_img, he_match, he_neg = he_img.to(device), ihc_match.to(device), ihc_neg.to(device), ihc_img.to(device), he_match.to(device), he_neg.to(device)
+                he_pos, ihc_match_pos, ihc_neg_pos, ihc_pos, he_match_pos, he_neg_pos = he_pos.to(device), ihc_match_pos.to(device), ihc_neg_pos.to(device), ihc_pos.to(device), he_match_pos.to(device), he_neg_pos.to(device)
 
-                z_he = model_he(he_img, he_pos)
-                z_ihc = model_ihc(ihc_img, ihc_pos)
+                z_anchor_he = model_he(he_img, he_pos)        # HE
+                z_pos_ihc   = model_ihc(ihc_match, ihc_match_pos)             # IHC (match)
+                z_neg_ihc   = model_ihc(ihc_neg, ihc_neg_pos)             # IHC (non-match)
 
-                loss = F.triplet_margin_loss(z_he, z_ihc, z_ihc)
+
+                z_anchor_ihc = model_ihc(ihc_img, ihc_pos)        # HE
+                z_pos_he   = model_he(he_match, he_match_pos)             # IHC (match)
+                z_neg_he   = model_he(he_neg, he_neg_pos)             # IHC (non-match)
+
+                print('start loss')
+                loss_he  = F.triplet_margin_loss(z_anchor_he, z_pos_ihc, z_neg_ihc)
+                loss_ihc = F.triplet_margin_loss(z_anchor_ihc, z_pos_he, z_neg_he)
+                loss = (loss_he + loss_ihc) / 2
+                print('end loss')
                 val_loss += loss.item()
 
         # with torch.no_grad():
@@ -307,24 +318,27 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
 
         print(f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
 
+    print(train_losses, val_losses)
     return model_he, model_ihc, train_losses, val_losses
 
 # ------------------------ Plotting Function ------------------------ #
 def plot_losses(train_losses, val_losses):
     plt.figure(figsize=(10, 5))
-    plt.plot(train_losses, label='Train Loss')
-    plt.plot(val_losses, label='Validation Loss')
+    plt.plot(range(1, len(train_losses)+1) ,train_losses, label='Train Loss')
+    plt.plot(range(1, len(val_losses)+1), val_losses, label='Validation Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.title('Training and Validation Losses')
     plt.legend()
+    plt.grid()
+    plt.savefig("plots/losses.png")
     plt.show()
 
 # ------------------------ Save models ------------------------ #	
-def save_model(model, checkpoint_dir, model_name):
+def save_model(model, checkpoint_dir, model_name, train_losses=None, val_losses=None):
     torch.save(model.state_dict(), os.path.join(checkpoint_dir, f"{model_name}.pth"))
-    torch.save(model, os.path.join(checkpoint_dir, "model_architecture.pth"))
-    torch.save(optimizer.state_dict(), os.path.join(checkpoint_dir, "optimizer.pth"))
+    #torch.save(model, os.path.join(checkpoint_dir, "model_architecture.pth"))
+    #torch.save(optimizer.state_dict(), os.path.join(checkpoint_dir, "optimizer.pth"))
     # Save losses
     torch.save(train_losses, os.path.join(checkpoint_dir, "train_losses.pth"))
     torch.save(val_losses, os.path.join(checkpoint_dir, "val_losses.pth"))
@@ -333,7 +347,7 @@ def save_model(model, checkpoint_dir, model_name):
 # ------------------------ Main Function ------------------------ #   
 if __name__ == "__main__":
     # Config
-    EPOCHS = 1
+    EPOCHS = 2
     BATCH_SIZE = 1
     LR = 3e-5
     ACCUMULATION_STEPS = 2
@@ -345,6 +359,8 @@ if __name__ == "__main__":
 
     # Set random seed for reproducibility
     random.seed(RANDOM_SEED)
+    torch.manual_seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
 
     # Load your prepared splits
     train_csv = "data/data_split/train_matches.csv"
@@ -364,8 +380,8 @@ if __name__ == "__main__":
     val_HE = TripletStainDataset(val_csv, he_dir, ihc_dir, "HE", "IHC")
     val_IHC = TripletStainDataset(val_csv, ihc_dir, he_dir, "IHC", "HE")
 
-    train_loader_HE = DataLoader(train_HE, batch_size=BATCH_SIZE, shuffle=False)
-    train_loader_IHC = DataLoader(train_IHC, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader_HE = DataLoader(train_HE, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader_IHC = DataLoader(train_IHC, batch_size=BATCH_SIZE, shuffle=True)
     val_loader_HE = DataLoader(val_HE, batch_size=BATCH_SIZE, shuffle=False)
     val_loader_IHC = DataLoader(val_IHC, batch_size=BATCH_SIZE, shuffle=False)
 
@@ -384,7 +400,7 @@ if __name__ == "__main__":
     print("end training")
 
     # Save the model
-    save_model(model_he, CHECKPOINT_DIR, "model_he")
+    save_model(model_he, CHECKPOINT_DIR, "model_he", train_losses, val_losses)
     save_model(model_ihc, CHECKPOINT_DIR, "model_ihc")
     
     # Plot losses
