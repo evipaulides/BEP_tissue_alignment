@@ -347,7 +347,7 @@ def save_model(model, checkpoint_dir, model_name, train_losses=None, val_losses=
 # ------------------------ Main Function ------------------------ #   
 if __name__ == "__main__":
     # Config
-    EPOCHS = 2
+    EPOCHS = 3
     BATCH_SIZE = 1
     LR = 3e-5
     ACCUMULATION_STEPS = 2
