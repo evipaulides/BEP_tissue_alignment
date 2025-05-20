@@ -12,6 +12,7 @@ from torchvision.transforms import functional as TF
 import timm
 import random
 import numpy as np
+import torchinfo
 
 # ------------------------ Dataset ------------------------ #    
 class TripletStainDataset(Dataset):
@@ -270,7 +271,8 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
                 optimizer.step()
                 optimizer.zero_grad()
 
-        avg_loss = total_loss / len(loader_he)
+        #avg_loss = total_loss / len(loader_he)
+        avg_loss = total_loss / step # step+ 1 van maken als de break statement weg gaat !!!
         train_losses.append(avg_loss)
 
         print('start validation')
@@ -302,18 +304,7 @@ def train_dual_encoder(model_he, model_ihc, loader_he, loader_ihc, val_loader_he
                 print('end loss')
                 val_loss += loss.item()
 
-        # with torch.no_grad():
-        #     for (he_img, he_pos), (ihc_img, ihc_pos) in zip(val_loader_he, val_loader_ihc):
-        #         he_img, ihc_img = he_img.to(device), ihc_img.to(device)
-        #         he_pos, ihc_pos = he_pos.to(device), ihc_pos.to(device)
-
-        #         z_he = model_he(he_img, he_pos)
-        #         z_ihc = model_ihc(ihc_img, ihc_pos)
-
-        #         loss = contrastive_loss(z_he, z_ihc)
-        #         val_loss += loss.item()
-
-        avg_val_loss = val_loss / len(loader_he)
+        avg_val_loss = val_loss / step # step+ 1 van maken als de break statement weg gaat !!!
         val_losses.append(avg_val_loss)
 
         print(f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
@@ -390,6 +381,9 @@ if __name__ == "__main__":
 
     model_he = MultiStainContrastiveModel(MODEL_NAME, PATCH_SIZE).to(device)
     model_ihc = MultiStainContrastiveModel(MODEL_NAME, PATCH_SIZE).to(device)
+
+    torchinfo.summary(model_he)
+
     optimizer = torch.optim.AdamW(list(model_he.parameters()) + list(model_ihc.parameters()), lr=LR)
 
     model_he, model_ihc = model_he.to(device), model_ihc.to(device)

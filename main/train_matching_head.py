@@ -243,6 +243,8 @@ def train_match_head(model_he, model_ihc, match_head, train_loader,val_loader, o
     train_losses = []
     val_losses = []
 
+    print('Start training')
+
     for epoch in range(EPOCHS):
         total_loss = 0
         optimizer.zero_grad()
@@ -332,7 +334,7 @@ def save_model(model, checkpoint_dir, model_name):
 # ------------------------ Main Function ------------------------ #
 if __name__ == "__main__":
    # Config
-    EPOCHS = 1
+    EPOCHS = 5
     BATCH_SIZE = 1
     LR = 3e-5
     ACCUMULATION_STEPS = 2
