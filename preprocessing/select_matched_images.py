@@ -4,8 +4,8 @@ import shutil
 
 # ==== CONFIG ====
 json_path = "data/image_matches/image_matches.json"  # Path to your JSON file
-source_he_folder = "data/HE_images_rotated"  # Folder containing original HE images
-source_ihc_folder = "data/IHC_images_rotated"  # Folder containing original IHC images
+source_he_folder = "data/HE_rotated"  # Folder containing original HE images
+source_ihc_folder = "data/IHC_rotated"  # Folder containing original IHC images
 dest_he_folder = "data/HE_images_matched"  # Destination folder for matched HE images
 dest_ihc_folder = "data/IHC_images_matched"  # Destination folder for matched IHC images
 # ================

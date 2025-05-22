@@ -66,11 +66,11 @@ if __name__ == "__main__":
 
     metrics = compute_metrics(y_true, y_pred, y_prob)
 
-    print("\n📊 Evaluation Metrics")
+    #print("\n📊 Evaluation Metrics")
     for k, v in metrics.items():
         print(f"{k.capitalize():<12}: {v:.4f}")
 
     plot_confusion_matrix(y_true, y_pred, os.path.join(output_dir, "match_confusion_matrix.png"))
     plot_roc_curve(y_true, y_prob, os.path.join(output_dir, "match_roc_curve.png"))
     plot_precision_recall(y_true, y_prob, os.path.join(output_dir, "match_precision_recall_curve.png"))
-    print("\n✅ Saved evaluation plots to 'results/'")
+    #print("\n✅ Saved evaluation plots to 'results/'")

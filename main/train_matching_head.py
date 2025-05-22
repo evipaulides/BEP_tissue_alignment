@@ -243,18 +243,18 @@ def train_match_head(model_he, model_ihc, match_head, train_loader,val_loader, o
     train_losses = []
     val_losses = []
 
-    print('Start training')
+    #print('Start training')
 
     for epoch in range(EPOCHS):
         total_loss = 0
         optimizer.zero_grad()
 
-        print(f"Epoch {epoch+1}/{EPOCHS}")
+        #print(f"Epoch {epoch+1}/{EPOCHS}")
 
         for step, (he_img, he_pos, ihc_img, ihc_pos, labels) in enumerate(train_loader):
-            if step> 1:
-                break
-            print(f"Step {step+1}/{len(train_loader)}")
+            # if step> 1:
+            #     break
+            #print(f"Step {step+1}/{len(train_loader)}")
             he_img = he_img.to(device)
             ihc_img = ihc_img.to(device)
             he_pos = he_pos.to(device)
@@ -266,7 +266,7 @@ def train_match_head(model_he, model_ihc, match_head, train_loader,val_loader, o
                 z_ihc = model_ihc(ihc_img, ihc_pos)
 
             pred = match_head(z_he, z_ihc)
-            loss = F.binary_cross_entropy(pred, labels) / ACCUMULATION_STEPS
+            loss = F.binary_cross_entropy(F.sigmoid(pred), labels) / ACCUMULATION_STEPS
             loss.backward()
             total_loss += loss.item() * ACCUMULATION_STEPS
 
@@ -284,9 +284,9 @@ def train_match_head(model_he, model_ihc, match_head, train_loader,val_loader, o
         total = 0
         with torch.no_grad():
             for step, (he_img, he_pos, ihc_img, ihc_pos, labels) in enumerate(val_loader):
-                if step > 1:
-                    break
-                print(f"Step {step+1}/{len(val_loader)}")
+                # if step > 1:
+                #     break
+                #print(f"Step {step+1}/{len(val_loader)}")
                 he_img = he_img.to(device)
                 ihc_img = ihc_img.to(device)
                 he_pos = he_pos.to(device)
@@ -305,9 +305,9 @@ def train_match_head(model_he, model_ihc, match_head, train_loader,val_loader, o
         avg_val_loss = val_loss / len(val_loader)
         val_losses.append(avg_val_loss)
         val_acc = correct / total
-        print(f"Epoch {epoch+1}: Train Loss = {avg_train_loss:.4f} | Val Loss = {avg_val_loss:.4f} | Val Acc = {val_acc:.2%}")
+        #print(f"Epoch {epoch+1}: Train Loss = {avg_train_loss:.4f} | Val Loss = {avg_val_loss:.4f} | Val Acc = {val_acc:.2%}")
 
-    print(train_losses, val_losses)
+    #print(train_losses, val_losses)
     return match_head, train_losses, val_losses
 
 # ------------------------ Plotting Function ------------------------ #

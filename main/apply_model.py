@@ -239,9 +239,9 @@ def run_model(model_he, model_ihc, matching_head, data_loader):
     predictions = []
     with torch.no_grad():
         for idx, (he_img, he_pos, ihc_img, ihc_pos, label) in enumerate(data_loader):
-            if idx > 30:
-                break
-            print(f"Step {idx}/{len(data_loader)}")
+            # if idx > 30:
+            #     break
+            #print(f"Step {idx}/{len(data_loader)}")
             he_img, ihc_img = he_img.to(device), ihc_img.to(device)
             he_pos, ihc_pos = he_pos.to(device), ihc_pos.to(device)
             label = label.item()
@@ -266,7 +266,7 @@ def save_predictions(predictions, output_path):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     output_df.to_csv(output_path, index=False)
     
-    print(f"✅ Saved predictions to {output_path}")
+    #print(f"✅ Saved predictions to {output_path}")
 
 
 # ------------------ Main function ------------------ #
