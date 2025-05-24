@@ -3,8 +3,8 @@ from PIL import Image
 import os
 
 # === Configuration ===
-input_csv_path = "data/data_split/train_matches.csv"       # Input CSV file with HE and IHC columns
-output_csv_path = "data/data_split/train_filtered.csv"   # Output CSV file for valid matches
+input_csv_path = "data/data_split/val_matches.csv"       # Input CSV file with HE and IHC columns
+output_csv_path = "data/data_split/val_filtered.csv"   # Output CSV file for valid matches
 he_dir = "data/HE_images_matched"
 ihc_dir = "data/IHC_images_matched"
 max_area = 1136 * 1232               # Area threshold (change as needed)
