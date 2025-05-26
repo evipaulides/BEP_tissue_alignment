@@ -55,7 +55,7 @@ def plot_precision_recall(y_true, y_prob, save_path):
     plt.close()
 
 if __name__ == "__main__":
-    pred_path = "checkpoints/predictions.csv"
+    pred_path = "checkpoints/predictions2.csv"
     output_dir = "results"
     os.makedirs(output_dir, exist_ok=True)
 
