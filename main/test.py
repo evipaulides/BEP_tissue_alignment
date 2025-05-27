@@ -55,9 +55,7 @@ class MatchPairDataset(Dataset):
         he_mask = Image.open(he_mask_path).convert("L")
         ihc_mask = Image.open(ihc_mask_path).convert("L")
 
-        print(f"HE Image: {he_name}, IHC Image: {ihc_name}")
-        print(f"HE Mask: {he_mask_path}, IHC Mask: {ihc_mask_path}")
-        print(f'size HE: {he_img.size}, mask HE {he_mask.size}, size IHC: {ihc_img.size}, mask IHC: {ihc_mask.size}')
+        #print(f"HE Image: {he_name}, IHC Image: {ihc_name}")
 
 
         if self.transform:
@@ -119,7 +117,7 @@ class MatchPairDataset(Dataset):
         # Randomly select augmentation target
         choice = random.choice(['none', 'both', 'HE', 'IHC'])
 
-        print(f"Applying augmentation: {choice}")
+        #print(f"Applying augmentation: {choice}")
         if choice == 'both':
             he_img, he_mask = self.augment_image(he_img, he_mask)
             ihc_img, ihc_mask = self.augment_image(ihc_img, ihc_mask)
@@ -129,7 +127,7 @@ class MatchPairDataset(Dataset):
             ihc_img, ihc_mask = self.augment_image(ihc_img, ihc_mask)
         
         return he_img, he_mask, ihc_img, ihc_mask
-
+    
 
 def train_model(model, train_loader, val_loader, optimizer, device, epochs, accumulation_steps):
     model.to(device)
@@ -143,17 +141,30 @@ def train_model(model, train_loader, val_loader, optimizer, device, epochs, accu
         for step, (he_img, he_pos, ihc_img, ihc_pos, label) in enumerate(train_loader):
             #print(f"Epoch {epoch + 1}/{epochs}, Step {step + 1}/{len(train_loader)}")
 
+            if step > 10:
+                break
+
             step += 1
             he_img, he_pos = he_img.to(device), he_pos.to(device)
             ihc_img, ihc_pos = ihc_img.to(device), ihc_pos.to(device)
             label = label.unsqueeze(1).float().to(device)
 
+            # plot matches ans label
+            # plt.figure(figsize=(10, 5))
+            # plt.subplot(1, 2, 1)
+            # plt.imshow(he_img[0].cpu().permute(1, 2, 0))
+            # plt.title("HE Image")
+            # plt.subplot(1, 2, 2)
+            # plt.imshow(ihc_img[0].cpu().permute(1, 2, 0))
+            # plt.title("IHC Image")
+            # plt.suptitle(f"Label: {label.item()}")
+            # plt.show()
             pred = model(he_img, he_pos, ihc_img, ihc_pos)
             loss = F.binary_cross_entropy(F.sigmoid(pred), label) / accumulation_steps
             loss.backward()
             train_loss += loss.item()* accumulation_steps
 
-            print('step:',step, 'label:', label[0].item(), 'Prediction:', F.sigmoid(pred)[0].item(), train_loss)
+            #print('step:',step, 'label:', label[0].item(), 'Prediction:', F.sigmoid(pred)[0].item(), train_loss)
 
             if (step + 1) % accumulation_steps == 0 or (step + 1) == len(train_loader):
                 optimizer.step()
@@ -199,11 +210,8 @@ def plot_losses(train_losses, val_losses):
     plt.ylabel('Loss')
     plt.title('Training and Validation Losses')
     plt.legend()
-    plt.savefig('plots/model_losses.png')
-
-# ------------------------ Save models ------------------------ #	
-def save_model(model, checkpoint_dir, model_name):
-    torch.save(model.state_dict(), os.path.join(checkpoint_dir, f"{model_name}.pth"))
+    plt.savefig('plots/model_losses9.png')
+    plt.show()
 
 
 
@@ -221,7 +229,7 @@ if __name__ == "__main__":
     RANDOM_SEED = 42
     MODEL_PATH = "main/external/vit_wee_patch16_reg1_gap_256.sbb_in1k.pth"
     PATCH_SIZE = 16
-    ACCUMULATION_STEPS = 8
+    ACCUMULATION_STEPS = 2
     MODEL_NAME = "matching_model"
 
     INPUT_DIM = 3
@@ -233,8 +241,8 @@ if __name__ == "__main__":
     ACT_LAYER = nn.GELU
 
     # Paths to data
-    train_csv = "data/data_split/train_filtered.csv"
-    val_csv = "data/data_split/val_filtered.csv"
+    train_csv = "data/data_split/train_filtered_copy.csv"
+    val_csv = "data/data_split/val_filtered_copy.csv"
 
     he_dir = "data/HE_images_matched"
     he_mask_dir = "data/HE_masks_matched"
@@ -243,7 +251,7 @@ if __name__ == "__main__":
 
 
     # Create datasets and dataloaders
-    train_dataset = MatchPairDataset(train_csv, he_dir,  he_mask_dir, ihc_dir, ihc_mask_dir, transform=True)
+    train_dataset = MatchPairDataset(train_csv, he_dir,  he_mask_dir, ihc_dir, ihc_mask_dir, transform=False)
     val_dataset = MatchPairDataset(val_csv, he_dir, he_mask_dir, ihc_dir, ihc_mask_dir, transform=False)
 
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
@@ -269,10 +277,4 @@ if __name__ == "__main__":
 
     model, train_losses, val_losses = train_model(model, train_loader, val_loader, optimizer, device, EPOCHS, ACCUMULATION_STEPS)
 
-    # Save the model
-    # os.makedirs(CHECKPOINT_DIR, exist_ok=True)
-    # torch.save(model.state_dict(), os.path.join(CHECKPOINT_DIR, f"{MODEL_NAME}.pth"))
-    
-    # plot_losses(train_losses, val_losses)
-
-    
+    plot_losses(train_losses, val_losses)
