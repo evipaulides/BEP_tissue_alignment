@@ -1,27 +1,24 @@
 import os
+import random
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
-import pandas as pd
-from PIL import Image
-import matplotlib.pyplot as plt
-import random
 from torchvision.transforms import functional as TF
-import timm
-import random
-import numpy as np
-from matching_model import MatchingModel
+from PIL import Image
+from external.DualInputViT import DualInputViT
+from external.DualBranchViT import DualBranchViT
+import config
 
 
 # ------------------------ Dataset ------------------------ #
 class MatchPairDataset(Dataset):
-    def __init__(self, csv_path, he_dir, ihc_dir, transform=None):
+    def __init__(self, csv_path, he_dir, ihc_dir):
         self.df = pd.read_csv(csv_path).reset_index(drop=True)
         self.he_dir = he_dir
         self.ihc_dir = ihc_dir
-        self.transform = transform
         self.match_map = {
             row['HE']: row['IHC'] for _, row in self.df.iterrows()
         }
@@ -49,12 +46,8 @@ class MatchPairDataset(Dataset):
         he_img = Image.open(he_path).convert("RGB")
         ihc_img = Image.open(ihc_path).convert("RGB")
 
-        if self.transform:
-            he_img = self.transform(he_img)
-            ihc_img = self.transform(ihc_img)
-        else:
-            he_img = TF.to_tensor(he_img)
-            ihc_img = TF.to_tensor(ihc_img)
+        he_img = TF.to_tensor(he_img)
+        ihc_img = TF.to_tensor(ihc_img)
 
         he_pos = self.get_positions(he_img, patch_size=16)
         ihc_pos = self.get_positions(ihc_img, patch_size=16)
@@ -111,65 +104,86 @@ def save_predictions(predictions, output_path):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     output_df.to_csv(output_path, index=False)
     
-    #print(f"✅ Saved predictions to {output_path}")
+    #print(f"Saved predictions to {output_path}")
 
 
 # ------------------ Main function ------------------ #
 if __name__ == "__main__":
-   # Config
-    EPOCHS = 5
-    BATCH_SIZE = 1
-    LR = 3e-5
-    ACCUMULATION_STEPS = 2
-    CHECKPOINT_DIR = "checkpoints"
-    RANDOM_SEED = 42
-    MODEL_NAME = "vit_base_patch16_224"
-    PATCH_SIZE = 16
-    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+    #set random seed for reproducibility
+    random.seed(42)
+    np.random.seed(42)
+    torch.manual_seed(42)
 
-    # Set random seed for reproducibility
-    random.seed(RANDOM_SEED)
-    torch.manual_seed(RANDOM_SEED)
-    np.random.seed(RANDOM_SEED)
+    # define paths
+    train_csv = config.train_csv
+    val_csv = config.val_csv
+    test_csv = config.test_csv
 
-    # Load your prepared splits
-    train_csv = "data/data_split/train_filtered.csv"
-    val_csv = "data/data_split/val_filtered.csv"
-    test_csv = "data/data_split/test_matches.csv"
+    he_dir = config.he_dir
+    ihc_dir = config.ihc_dir
 
-    he_dir = "data/HE_images_matched"
-    ihc_dir = "data/IHC_images_matched"
+    he_mask_dir = config.he_mask_dir
+    ihc_mask_dir = config.ihc_mask_dir
 
-     # Model
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    model_dict_path = config.saved_model_path
+    prediction_dir = config.prediction_dir
+    os.makedirs(prediction_dir, exist_ok=True)
+    output_path = os.path.join(prediction_dir, "predictions.csv")
 
-    model = MatchingModel(
-        model_path="main/external/vit_wee_patch16_reg1_gap_256.sbb_in1k.pth",
-        patch_shape=PATCH_SIZE,
-        input_dim=3,
-        embed_dim=256,
-        n_classes=None,
-        depth=14,
-        n_heads=4,
-        mlp_ratio=5,
-        pytorch_attn_imp=False,
-        init_values=1e-5,
-        act_layer=nn.GELU)
+    device = config.device
 
-    model.load_state_dict(torch.load(os.path.join(CHECKPOINT_DIR, "matching_model.pth")), map_location=device)
+    # define model settings
+    model_architecture = config.model_architecture
+    patch_shape = config.patch_shape
+    input_dim = config.input_dim
+    embed_dim = config.embed_dim
+    n_classes = config.n_classes
+    depth = config.depth
+    n_heads = config.n_heads
+    mlp_ratio = config.mlp_ratio
+    load_pretrained_param = config.load_pretrained_param
+
+    if model_architecture == "DualInputViT":
+        model = DualInputViT(
+            patch_shape = patch_shape, 
+            input_dim = input_dim,
+            embed_dim = embed_dim, 
+            n_classes = n_classes,
+            depth = depth,
+            n_heads = n_heads,
+            mlp_ratio = mlp_ratio,
+            pytorch_attn_imp = False,
+            init_values = 1e-5,
+            act_layer = nn.GELU
+        )
+    elif model_architecture == "DualBranchViT":
+        model = DualBranchViT(
+            patch_shape = patch_shape, 
+            input_dim = input_dim,
+            embed_dim = embed_dim, 
+            n_classes = n_classes,
+            depth = depth,
+            n_heads = n_heads,
+            mlp_ratio = mlp_ratio,
+            pytorch_attn_imp = False,
+            init_values = 1e-5,
+            act_layer = nn.GELU
+        )
+
+    model.load_state_dict(torch.load(model_dict_path, map_location=device), strict=False)
+
     model = model.to(device)
     model.eval()
 
-    # test_dataset = MatchPairDataset(test_csv_path, he_dir, ihc_dir)
-    # test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-    eval_dataset = MatchPairDataset(val_csv, he_dir, ihc_dir)
-    eval_loader = DataLoader(eval_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    # Initialize the dataset and dataloader
+    eval_dataset = MatchPairDataset(
+        csv_path = val_csv,
+        he_dir = he_dir,
+        ihc_dir = ihc_dir)
+    eval_loader = DataLoader(eval_dataset, shuffle=False)
 
     # Run the model on a dataset
     predictions = run_model(model, eval_loader)
 
     # Save predictions
-    output_path = os.path.join(CHECKPOINT_DIR, "predictions.csv")
     save_predictions(predictions, output_path)
-
