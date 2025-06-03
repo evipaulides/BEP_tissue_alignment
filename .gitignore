@@ -12,3 +12,5 @@ multistain_overview.png
 \plots
 /main/__pycache__
 requirements.txt
+\old
+main/config.py
