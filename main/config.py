@@ -2,7 +2,7 @@ import torch
 
 # define paths
 train_csv = "data/data_split/train_filtered2.csv"
-val_csv = "data/data_split/val_filtered2.csv"
+val_csv = "data/data_split/val_filtered3.csv"
 test_csv = "data/data_split/test_matches.csv"
 
 he_dir = "data/HE_images_matched"
@@ -11,7 +11,7 @@ ihc_dir = "data/IHC_images_matched"
 ihc_mask_dir = "data/IHC_masks_matched"
 
 state_dict_path = "main/external/vit_wee_patch16_reg1_gap_256.sbb_in1k.pth"
-saved_model_path = "checkpoints/2025-06-03 13.32.48_DualInputViT_ep2.pth"
+saved_model_path = "checkpoints/2025-06-03 16.02.45_DualInputViT_ep28.pth"
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -36,3 +36,4 @@ load_pretrained_param = True
 
 # define outputs
 prediction_dir = "predictions"
+checkpoints_dir = "checkpoints"

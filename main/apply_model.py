@@ -79,7 +79,7 @@ def run_model(model, data_loader):
         for idx, (he_img, he_pos, ihc_img, ihc_pos, label) in enumerate(data_loader):
             # if idx > 30:
             #     break
-            #print(f"Step {idx}/{len(data_loader)}")
+            print(f"Step {idx}/{len(data_loader)}")
             he_img, ihc_img = he_img.to(device), ihc_img.to(device)
             he_pos, ihc_pos = he_pos.to(device), ihc_pos.to(device)
             label = label.unsqueeze(1).float().to(device)
@@ -91,9 +91,9 @@ def run_model(model, data_loader):
 
             predictions.append({
                 "index": idx,
-                "true_label": label,
+                "true_label": label.item(),
                 "pred_prob": prob,
-                "pred_label": predicted,
+                "pred_label": predicted.item(),
             })
 
     return predictions
@@ -109,6 +109,9 @@ def save_predictions(predictions, output_path):
 
 # ------------------ Main function ------------------ #
 if __name__ == "__main__":
+    model_dict_path = "checkpoints/2025-06-03 16.02.45_DualInputViT_ep49.pth"  # Change this to the right model path
+    model_id = '_06-03_16.02_e49'  # Change this to the right model ID
+
     #set random seed for reproducibility
     random.seed(42)
     np.random.seed(42)
@@ -128,7 +131,7 @@ if __name__ == "__main__":
     model_dict_path = config.saved_model_path
     prediction_dir = config.prediction_dir
     os.makedirs(prediction_dir, exist_ok=True)
-    output_path = os.path.join(prediction_dir, "predictions.csv")
+    output_path = os.path.join(prediction_dir, f'predictions{model_id}.csv')
 
     device = config.device
 
