@@ -1,17 +1,9 @@
-image_rotations_r.json
-image_rotations_e.json
-image_rotations.json
-image_rotations_HE.json
 \data
-image_matches.json
-multistain_overview.png
 /BEP_venv
 \checkpoints
 \results
 \plots
-/main/__pycache__
 \old
-main/config.py
 \predictions
 \main_old
 \side
