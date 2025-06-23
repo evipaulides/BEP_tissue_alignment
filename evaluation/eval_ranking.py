@@ -3,23 +3,41 @@ import numpy as np
 import pandas as pd
 import os
 from PIL import Image
-from torchvision import transforms
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import math
-from external.dataset_utils import get_centroid_of_mask
 import torchvision.transforms.functional as TF
-import config
-from external.DualInputViT import DualInputViT
-from external.DualBranchViT import DualBranchViT
-from external.ViT_utils import convert_state_dict
 from torch import nn
 import torch.nn.functional as F
 import json
 
+import sys
+from pathlib import Path
+
+# Add the parent directory to the path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from training.external.DualInputViT import DualInputViT
+from training.external.DualBranchViT import DualBranchViT
+from training.external.dataset_utils import get_centroid_of_mask
+import config
+
+
 # === Image and position loading ===
 
 def load_image(img_dir, img_mask_dir, patch_size=16):
+    """
+    Loads an image and its corresponding mask, converts them to tensors,
+    and computes the positions of patches based on the mask.
+
+    Args:
+        img_dir (str): Path to the image file.
+        img_mask_dir (str): Path to the mask file.
+        patch_size (int): Size of the patches to be extracted.
+
+    Returns:
+        img (torch.Tensor): Tensor representation of the image.
+        pos (torch.Tensor): Tensor of positions for each patch based on the mask.
+    """
     img = Image.open(img_dir).convert('RGB')
     mask = Image.open(img_mask_dir).convert('L')
 
@@ -29,6 +47,17 @@ def load_image(img_dir, img_mask_dir, patch_size=16):
     return img, pos
 
 def get_positions(img, mask, patch_size):
+    """
+    Computes the positions of patches based on the mask.
+
+    Args:
+        img (torch.Tensor): Tensor representation of the image.
+        mask (torch.Tensor): Tensor representation of the mask.
+        patch_size (int): Size of the patches to be extracted.
+
+    Returns:
+        pos (torch.Tensor): Tensor of positions for each patch based on the mask.
+    """
     centroid = get_centroid_of_mask(mask)
     cx = math.floor(centroid[0])
     cy = math.floor(centroid[1])
@@ -51,7 +80,17 @@ def get_positions(img, mask, patch_size):
 def compute_recall_and_rank_metrics(ranks, ks=[1, 5, 10]):
     """
     Computes Recall@k, mean rank, and median rank.
-    Assumes ranks is a list of 1-based ranks of correct matches.
+    
+    Args:
+        ranks (list): List of ranks for each image.
+        ks (list): List of k values for Recall@k.
+
+    Returns:
+        recall_at_k (dict): Dictionary with Recall@k values.
+        mean_rank (float): Mean of the ranks.
+        median_rank (float): Median of the ranks.
+        std_rank (float): Standard deviation of the ranks.
+        IQR (tuple): Interquartile range of the ranks (Q1, Q3).
     """
     ranks = np.array(ranks)
     n = len(ranks)
@@ -93,6 +132,24 @@ def evaluate_ranking_and_save(
     device='cuda',
     top_k=10
 ):
+    """
+    Evaluates the model by ranking H&E and IHC images, saves the results,
+    and generates plots for the top-k matches and worst predictions.
+
+    Args:
+        model (torch.nn.Module): The trained model to evaluate.
+        match_csv (str): Path to the CSV file containing matching pairs.
+        he_folder (str): Directory containing H&E images.
+        ihc_folder (str): Directory containing IHC images.
+        he_mask_folder (str): Directory containing H&E masks.
+        ihc_mask_folder (str): Directory containing IHC masks.
+        model_id (str): Identifier for the model, used in output filenames.
+        device (str): Device to run the model on ('cuda' or 'cpu').
+        top_k (int): Number of top matches to consider for plotting.
+
+    Returns:
+        dict: A dictionary containing recall metrics and mean ranks for both directions.
+    """
     model.eval().to(device)
 
     output_dir = os.path.join("results_test", model_id)
@@ -280,7 +337,7 @@ def evaluate_ranking_and_save(
         plt.close()
 
 
-    # === Compute and save stats ===
+    # Compute and save stats
     recall_he, mean_he, median_he, std_he, iqr_he = compute_recall_and_rank_metrics(all_ranks)
     recall_ihc, mean_ihc, median_ihc, std_ihc, iqr_ihc = compute_recall_and_rank_metrics(ihc_ranks)
     
@@ -311,12 +368,12 @@ def evaluate_ranking_and_save(
         "mean_rank_ihc": mean_ihc
     }
 
-# === Main ===
-
+# === MAIN SCRIPT ===
 if __name__ == "__main__":
-    model_dict_path = "checkpoints/2025-06-20 10.49.02_DualInputViT_ep99.pth"
-    model_id = '_06-20_10.49_e99'
+    model_dict_path = "checkpoints/2025-06-20 10.49.02_DualInputViT_ep99.pth" # Path to the model weights, change as needed
+    model_id = '_06-20_10.49_e99' # Identifier for the model, used in output filenames (format: _MM-DD_HH.MM_eXX, XX is epoch number)
 
+    # Load configuration
     eval_csv = config.test_csv
     he_dir = config.he_dir
     ihc_dir = config.ihc_dir
@@ -334,6 +391,7 @@ if __name__ == "__main__":
     mlp_ratio = config.mlp_ratio
     load_pretrained_param = config.load_pretrained_param
 
+    # Initialize the model based on the architecture specified in the config
     if model_architecture == "DualInputViT":
         model = DualInputViT(
             patch_shape=patch_shape,
@@ -361,9 +419,11 @@ if __name__ == "__main__":
             act_layer=nn.GELU
         )
 
+    # Load the model weights
     model.load_state_dict(torch.load(model_dict_path, map_location=device), strict=False)
     model = model.to(device)
 
+    # Evaluate the model and save results
     stats = evaluate_ranking_and_save(
         model=model,
         match_csv=eval_csv,

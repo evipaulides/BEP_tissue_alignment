@@ -1,8 +1,13 @@
 import json
 import numpy as np
-import config
 import os
 from collections import defaultdict, Counter
+
+# Add the parent directory to the path
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+import config
 
 def get_case_id(filename):
     """
@@ -78,7 +83,7 @@ def get_case_size_distribution(case_to_images, label):
 
 # === MAIN SCRIPT ===
 # Load configuration
-model_id = "_06-19_03.36_e99" # Change this to the correct model ID
+model_id = "_06-19_03.36_e99" # Change this to the correct model ID (format: _MM-DD_HH.MM_eXX, XX is epoch number)
 match_csv = config.test_csv
 output_dir = os.path.join("results_test", model_id)
 os.makedirs(output_dir, exist_ok=True)

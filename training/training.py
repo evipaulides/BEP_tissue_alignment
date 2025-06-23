@@ -1,6 +1,8 @@
 import logging
 import random
 from datetime import datetime
+from pathlib import Path
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,18 +17,36 @@ from external.DualInputViT import DualInputViT
 from external.dataset_utils import PairDataset
 from external.ViT_utils import convert_state_dict
 
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config
 
-" De training code maar dan ingedeeld in classes en functies voor betere leesbaarheid en onderhoudbaarheid."
-
 def seed_worker(worker_id):
- 
-   
-    worker_seed = RANDOM_SEED + worker_id
+    """
+    Seed worker processes for reproducibility.
+    """
+    worker_seed = config.RANDOM_SEED + worker_id
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
 def train_model(epochs, train_dataloader, val_dataloader, model, optimizer, device, gradient_accumulation_steps, pred_threshold, logger, scheduler=None):
+    """
+    Train the model for a specified number of epochs.
+
+    Args:
+        epochs (int): Number of epochs to train.
+        train_dataloader (DataLoader): DataLoader for training data.
+        val_dataloader (DataLoader): DataLoader for validation data.
+        model (nn.Module): The model to train.
+        optimizer (torch.optim.Optimizer): Optimizer for training.
+        device (torch.device): Device to run the model on.
+        gradient_accumulation_steps (int): Number of steps to accumulate gradients.
+        pred_threshold (float): Threshold for predictions.
+        logger (logging.Logger): Logger for logging training information.
+        scheduler (torch.optim.lr_scheduler._LRScheduler, optional): Learning rate scheduler.
+
+    Returns:
+        loss_dict (dict): Dictionary containing training and validation losses, accuracies, and learning rates.
+    """
     loss_dict = {
         'train_loss': [],
         'train_step': [],
@@ -37,9 +57,10 @@ def train_model(epochs, train_dataloader, val_dataloader, model, optimizer, devi
     }
     for epoch in range(epochs):
         accummulated_loss = 0
+        # Training step
         for step, (he_img, he_pos, ihc_img, ihc_pos, label) in enumerate(train_dataloader):
             
-            if False:
+            if False: # Set to True to visualize images
                 print(label)
                 plt.imshow(he_img[0, ...].numpy().transpose((1,2,0)))
                 plt.show()
@@ -71,6 +92,7 @@ def train_model(epochs, train_dataloader, val_dataloader, model, optimizer, devi
                 loss_dict['train_step'].append(step+(epochs*len(train_dataset)))
                 accummulated_loss = 0
         
+        # Validation step
         model.eval()
         best_val_loss = None
         with torch.no_grad():
@@ -122,7 +144,7 @@ def train_model(epochs, train_dataloader, val_dataloader, model, optimizer, devi
 if __name__ == '__main__':
 
     # Set the random seed for reproducibility
-    RANDOM_SEED = 42
+    RANDOM_SEED = config.RANDOM_SEED
     random.seed(RANDOM_SEED)
     torch.manual_seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
