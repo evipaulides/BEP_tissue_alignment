@@ -37,21 +37,21 @@ BEP_tissue_alignment/
 │   ├── correct_rotations_padding.py                    # Rotates and pads the images and masks based on binary masks and rotation files (crops_masked → _rotated)
 │   ├── select_matched_images.py                        # Selects matched images and masks based on matches file (_rotated → _matched)
 │   └── select_size.py                                  # Filters data on pixel threshold to fit GPU memory, based on matches file and matched images (matched.csv → filtered.csv)
-├── training/
-│   ├── external/
-│   │   ├── dataset_utils.py
-│   │   ├── DualBranchViT.py
-│   │   ├── DualInputViT.py
-│   │   ├── ViT_utils.py
-│   │   └── vit_wee_patch16_reg1_gap_256.sbb_in1k.pth
-│   └── training.py
-├── evaluation/
-│   ├── eval_ranking.py
-│   └── analyse_scores.py
-├── figures/
-├── config.py
-├── requitements.txt
-└── README.md
+├── training/                                           # Folder containing scripts for training and folder with required model architecture, parameters and utils
+│   ├── external/                                       # Folder containing required model architecture, parameters and (dataset)utils
+│   │   ├── dataset_utils.py                            # Script with utils for initialising the training and valitation dataset
+│   │   ├── DualBranchViT.py                            # Model architecture for the Dual-Branch ViT (not yet used in this research)
+│   │   ├── DualInputViT.py                             # Model architecture for the Dual-Image ViT used in this research
+│   │   ├── ViT_utils.py                                # Script with utils functions for the model architecture initialisation
+│   │   └── vit_wee_patch16_reg1_gap_256.sbb_in1k.pth   # Pre-trained model parameters
+│   └── training.py                                     # Script for training the ViT model
+├── evaluation/                                         # Folder containing the scripts for evaluating the retrieval performance
+│   ├── eval_ranking.py                                 # Applies the traied model to all possible matches and saves rankings and metrics
+│   └── analyse_scores.py                               # Computes futher details metrics based on the saved rankings
+├── figures/                                            # Folder containing any figures supporting the README file
+├── config.py                                           # Configuration file containing all paths, hyperparameters and variables; is not yet created, but is required in order to run the scripts
+├── requitements.txt                                    # Document containing all required packages in order to run the scripts
+└── README.md                                           # Overview of repository information and instructions about the scripts
 
 ```
 
