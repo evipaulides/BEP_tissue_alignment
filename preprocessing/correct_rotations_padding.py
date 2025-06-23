@@ -166,7 +166,7 @@ if __name__ == "__main__":
 
     # Load the configuration (change from ihc to he if needed)
     rotation_info_path = config.rotation_file_ihc  # Path to the JSON file with rotation info
-    original_images_path = config.ihc_images_raw  # Path to the directory with original images
+    original_images_path = config.ihc_images_masked  # Path to the directory with original images
     original_masks_path = config.ihc_masks_raw  # Path to the directory with original masks
     rotated_images_path = config.ihc_images_rotated  # Path to the directory with rotated images
     rotated_masks_path = config.ihc_masks_rotated  # Path to the directory with rotated masks

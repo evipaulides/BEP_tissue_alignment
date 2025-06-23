@@ -77,3 +77,27 @@ Install the required packages inyo your virtual environment by running the follo
 pip install -r requirements.txt
 ```
 
+## Project walk-through
+A walk-through of how to run the scripts to preprocess the data into model input, train the ViT and evaluate the model's performance.
+
+### 0. Set-up
+First, create a virtual environment, install all packages from the `requirements.txt` file and create a `config.py` file with all necessary paths, variables and parameters.
+
+### 1. Preprocessing - Preperating raw data into model input
+#### 1.1. mask_crops.py
+Run this script to remove the WSI background and replace it with a uniform background color (that matches a standard WSI background) to remove any visible adjacent cross-sections from the image. The input: Path to the directory containing images of a specific train, path to the directory containing the corresponding masks and the path to the directory to save the masked crops. Note: this needs to be runned for both stainings.
+
+#### 1.2. correct_rotations_padding.py
+Run this script to rotate the tissue sections to align the tissue layers horizontally, with the epidermis at the top. Then, the crops and masks are padded into suitable model input based on the rotations files. The input: Rotations file, paths to the directory with crops masked, path to the directory with masks and the paths to the directories of the rotated, padded images and masks to save the processed data. Note: this needs to be runned for both stainings.
+
+#### 1.3. select_matched_images.py
+Run this script to select the images that are part of a match pair, based on the matches file. The input: the matches file, paths to the rotated, padded images directories and paths to the matched images directories to save the selected images.
+
+#### 1.4. select_size.py (optional)
+Run this script to filter the train, validation and test data files to the allowed amount of pixels on the running device. The script creates another csv file that only contains the matches that both meet the allowed image size. The input: the matches file and the paths to the matched images directories. Note: this needs to be runned for all 3 types of data files (train, val, test).
+
+### 2. Training the model
+#### 2.1. training.py
+Based on the training and validation data (captured in csv files) and the matched images, the model can now be trained to predict whether tissue sections represent the same specimin (match) or not (non-match). The trained model parameters are saved.
+
+### 3. Model evaluation
