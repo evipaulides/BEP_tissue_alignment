@@ -1,4 +1,4 @@
-# Bachelor End Project - Matching Multi-stain tissue sections of skincancer WSIs
+# Bachelor End Project - Matching Multi-stain tissue sections of skin cancer WSIs
 A Dual-Image Vision Transformer (VIT) adapted to make a match prediction for image pairs with varying input sizes.
 
 This repository contains code to support the BEP: ***"Deep Learning for Multi-Stain Tissue Section Matching in Whole Slide Images"***
@@ -80,7 +80,7 @@ pip install -r requirements.txt
 ## Project walk-through
 A walk-through of how to run the scripts to preprocess the data into model input, train the ViT and evaluate the model's performance.
 
-### 0. Set-up
+### 0. Setup
 First, create a virtual environment, install all packages from the `requirements.txt` file and create a `config.py` file with all necessary paths, variables and parameters.
 
 ### 1. Preprocessing - Preperating raw data into model input
