@@ -96,8 +96,20 @@ Run this script to select the images that are part of a match pair, based on the
 #### 1.4. select_size.py (optional)
 Run this script to filter the train, validation and test data files to the allowed amount of pixels on the running device. The script creates another csv file that only contains the matches that both meet the allowed image size. The input: the matches file and the paths to the matched images directories. Note: this needs to be runned for all 3 types of data files (train, val, test).
 
-### 2. Training the model
+### 2. Training - training the model to the optimal parameters
 #### 2.1. training.py
 Based on the training and validation data (captured in csv files) and the matched images, the model can now be trained to predict whether tissue sections represent the same specimin (match) or not (non-match). The trained model parameters are saved.
 
-### 3. Model evaluation
+### 3. Evaluation - evaluating the model on the retrieval performance
+#### 3.1. eval_ranking.py
+The model is applied to all possible image pairs. For each query image, match probabilities were computed against all candidate images of the opposite staining modality. The candidates were then ranked in descending order based on predicted probabilities. Metrics are computed and saved, as well as all rankings. metrics include:
+- Recall@k : k = 1,5,10. Indicating the percentage of queries in which the correct counterpart was found amoung the top k results
+- Mean and median rank of the true match and IQR: to provide insight into overall retrieval depth.
+
+#### 3.2. analyse_scores.py
+Run this script to provide a more detailed analysis of the computed rankings. The script loads the predicted rankings and calculates the patient-level metrics, as well as the correct in-case retrieval.
+
+
+## Contributors
+Evi Paulides <br>
+Bachelor End Project, IMAG/e
