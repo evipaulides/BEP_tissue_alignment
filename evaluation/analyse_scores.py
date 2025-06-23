@@ -4,17 +4,86 @@ import config
 import os
 from collections import defaultdict, Counter
 
-# === HELPER ===
 def get_case_id(filename):
+    """
+    Extracts the case ID from a filename.
+    """
     return filename.split('_')[0]
 
-# Load the saved predictions
-model_id = "_06-19_03.36_e99"
+def compute_metrics(ranks , ks=[1, 5, 10]):
+    """
+    Computes Recall@k, mean rank, and median rank.
+    Assumes ranks is a list of 1-based ranks of correct matches.
+
+    Args:
+        ranks (list): List of ranks for each image.
+        ks (list): List of k values for Recall@k.
+
+    Returns:
+        recall_at_k (dict): Dictionary with Recall@k values.
+        mean_rank (float): Mean of the ranks.
+        median_rank (float): Median of the ranks.
+        std_rank (float): Standard deviation of the ranks.
+        IQR (tuple): Interquartile range of the ranks (Q1, Q3).
+    """
+    ranks = np.array(ranks)
+    n = len(ranks)
+
+    # Recall@k
+    recall_at_k = {}
+    for k in ks:
+        recall_at_k[f"Recall@{k}"] = np.sum(ranks <= k) / n
+
+    # Rank statistics
+    mean_rank = np.mean(ranks)
+    median_rank = np.median(ranks)
+    std_rank = np.std(ranks)
+    q1 = np.percentile(ranks, 25)
+    q3 = np.percentile(ranks, 75)
+    IQR = (q1, q3)
+
+    return recall_at_k, mean_rank, median_rank, std_rank, IQR
+
+def get_case_size_distribution(case_to_images, label):
+    """
+    Computes the distribution of the number of images per case.
+
+    Args:
+        case_to_images (dict): Dictionary mapping case IDs to lists of image filenames.
+        label (str): Label for the type of images (e.g., "H&E", "IHC").
+
+    Returns:
+        max_size (int): Maximum number of images in a case.
+        min_size (int): Minimum number of images in a case.
+        mean_size (float): Mean number of images per case.
+        median_size (float): Median number of images per case.
+        iqr_size (tuple): Interquartile range of the number of images per case (Q1, Q3).
+    """
+    match_counts = [len(images) for images in case_to_images.values()]
+    dist = Counter(match_counts)
+    print(f"\n{label} Case Size Distribution (number of images per case):")
+    for size, count in sorted(dist.items()):
+        print(f"  {size} image(s): {count} case(s)")
+    print(f"  Max size: {max(match_counts)}, Min size: {min(match_counts)}, Mean: {np.mean(match_counts):.2f}, Median: {np.median(match_counts):.1f}, IQR: {np.percentile(match_counts, 25):.2f} - {np.percentile(match_counts, 75):.2f}")
+
+    max_size = max(match_counts)
+    min_size = min(match_counts)
+    mean_size = np.mean(match_counts)
+    median_size = np.median(match_counts)
+    iqr_size = (np.percentile(match_counts, 25), np.percentile(match_counts, 75))
+
+    return {max_size, min_size, mean_size, median_size, iqr_size}
+
+
+
+# === MAIN SCRIPT ===
+# Load configuration
+model_id = "_06-19_03.36_e99" # Change this to the correct model ID
 match_csv = config.test_csv
 output_dir = os.path.join("results_test", model_id)
 os.makedirs(output_dir, exist_ok=True)
 
-
+# Load the saved predictions
 with open(f"results_test/{model_id}/scores_he_to_ihc.json", "r") as f:
     scores_he_to_ihc = json.load(f)
 
@@ -40,47 +109,12 @@ for ihc_img, sorted_scores in scores_ihc_to_he.items():
     rank = predicted_names.index(ihc_to_he[ihc_img]) + 1
     ihc_ranks.append(rank)
 
-# Compute metrics
-def compute_metrics(ranks , ks=[1, 5, 10]):
-    """
-    Computes Recall@k, mean rank, and median rank.
-    Assumes ranks is a list of 1-based ranks of correct matches.
-    """
-    ranks = np.array(ranks)
-    n = len(ranks)
-
-    # Recall@k
-    recall_at_k = {}
-    for k in ks:
-        recall_at_k[f"Recall@{k}"] = np.sum(ranks <= k) / n
-
-    # Rank statistics
-    mean_rank = np.mean(ranks)
-    median_rank = np.median(ranks)
-    std_rank = np.std(ranks)
-    q1 = np.percentile(ranks, 25)
-    q3 = np.percentile(ranks, 75)
-    IQR = (q1, q3)
-
-
-    return recall_at_k, mean_rank, median_rank, std_rank, IQR
-    # return {
-    #     'Recall@1': np.mean(ranks <= 1),
-    #     'Recall@5': np.mean(ranks <= 5),
-    #     'Recall@10': np.mean(ranks <= 10),
-    #     'Mean Rank': np.mean(ranks),
-    #     'Median Rank': np.median(ranks),
-    #     'Standard Deviation': np.std(ranks),
-    #     '95 confidence interval': (lower_bound, upper_bound)
-    # }
-
-print("H&E → IHC:", compute_metrics(he_ranks))
-print("IHC → H&E:", compute_metrics(ihc_ranks))
-
+# Compute metrics for H&E → IHC and IHC → H&E
 recall_he, mean_he, median_he, std_he, iqr_he = compute_metrics(he_ranks)
 recall_ihc, mean_ihc, median_ihc, std_ihc, iqr_ihc = compute_metrics(ihc_ranks)
 
-# === GROUP BY CASE ===
+
+# group images by case
 case_to_he = defaultdict(list)
 case_to_ihc = defaultdict(list)
 
@@ -90,7 +124,7 @@ for he in df['HE']:
 for ihc in df['IHC']:
     case_to_ihc[get_case_id(ihc)].append(ihc)
 
-# === CASE-LEVEL RANKING H&E → IHC ===
+# CASE-LEVEL RANKING H&E → IHC
 he_case_ranks = []
 he_case_correct = 0
 
@@ -115,7 +149,7 @@ for case_id, he_imgs in case_to_he.items():
     if all_correct and he_imgs:
         he_case_correct += 1
 
-# === CASE-LEVEL RANKING IHC → H&E ===
+# CASE-LEVEL RANKING IHC → H&E
 ihc_case_ranks = []
 ihc_case_correct = 0
 
@@ -139,33 +173,15 @@ for case_id, ihc_imgs in case_to_ihc.items():
     if all_correct and ihc_imgs:
         ihc_case_correct += 1
 
-# === CASE-LEVEL METRICS ===
+# compute case-level metrics
 case_recall_he, case_mean_he, case_median_he, case_std_he, case_iqr_he = compute_metrics(he_case_ranks)
 case_recall_ihc, case_mean_ihc, case_median_ihc, case_std_ihc, case_iqr_ihc = compute_metrics(ihc_case_ranks)
 
-# === Compute distribution of matches per case
-def get_case_size_distribution(case_to_images, label):
-    match_counts = [len(images) for images in case_to_images.values()]
-    dist = Counter(match_counts)
-    print(f"\n{label} Case Size Distribution (number of images per case):")
-    for size, count in sorted(dist.items()):
-        print(f"  {size} image(s): {count} case(s)")
-    print(f"  Max size: {max(match_counts)}, Min size: {min(match_counts)}, Mean: {np.mean(match_counts):.2f}, Median: {np.median(match_counts):.1f}, IQR: {np.percentile(match_counts, 25):.2f} - {np.percentile(match_counts, 75):.2f}")
-
-    max_size = max(match_counts)
-    min_size = min(match_counts)
-    mean_size = np.mean(match_counts)
-    median_size = np.median(match_counts)
-    iqr_size = (np.percentile(match_counts, 25), np.percentile(match_counts, 75))
-
-    return {max_size, min_size, mean_size, median_size, iqr_size}
-# Print distributions
+# compute case size distribution
 max_size_he, min_size_he, mean_size_he, median_size_he, iqr_size_he = get_case_size_distribution(case_to_he, "H&E")
 max_size_ihc, min_size_ihc, mean_size_ihc, median_size_ihc, iqr_size_ihc = get_case_size_distribution(case_to_ihc, "IHC")
 
-
 # === Save results to file ===
-
 stats_file = os.path.join(output_dir, "analyse_ranking_stats.txt")
 with open(stats_file, 'w') as f:
     f.write("H&E → IHC direction:\n")
