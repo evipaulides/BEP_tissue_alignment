@@ -1,13 +1,14 @@
 import csv
 from PIL import Image
 import os
+import math
 
 # === Configuration ===
-input_csv_path = "data/data_split/val_matches.csv"       # Input CSV file with HE and IHC columns
-output_csv_path = "data/data_split/val_filtered3.csv"   # Output CSV file for valid matches
+input_csv_path = "data/data_split/test_matches.csv"       # Input CSV file with HE and IHC columns
+output_csv_path = "data/data_split/test_filtered.csv"   # Output CSV file for valid matches
 he_dir = "data/HE_images_matched"
 ihc_dir = "data/IHC_images_matched"
-max_area = 700 * 970         # Area threshold (change as needed)
+max_area = 700 * 1000         # Area threshold (change as needed)
 
 # === Process ===
 filtered_pairs = []
@@ -25,7 +26,12 @@ with open(input_csv_path, newline='') as csvfile:
             he_area = he_img.width * he_img.height
             ihc_area = ihc_img.width * ihc_img.height
 
-            if he_area < max_area and ihc_area < max_area:
+            augmented_he_area = (math.cos(5/ 180 * math.pi) * he_img.width + math.sin(5 / 180 * math.pi) * he_img.height) * (math.cos(5 / 180 * math.pi) * he_img.height + math.sin(5 / 180 * math.pi) * he_img.width)
+            augmented_he_area = 0
+            augmented_ihc_area = (math.cos(5 / 180 * math.pi) * ihc_img.width + math.sin(5 / 180 * math.pi) * ihc_img.height) * (math.cos(5 / 180 * math.pi) * ihc_img.height + math.sin(5 / 180 * math.pi) * ihc_img.width)
+            augmented_ihc_area = 0
+
+            if he_area < max_area and ihc_area < max_area and augmented_he_area < max_area and augmented_ihc_area < max_area:
                 filtered_pairs.append({"HE": row["HE"], "IHC": row["IHC"]})
         except Exception as e:
             print(f"Skipping pair ({row['HE']}, {row['IHC']}): {e}")
