@@ -3,8 +3,11 @@ import json
 from PIL import Image, ImageOps
 import numpy as np
 import math
-import matplotlib.pyplot as plt
+from pathlib import Path
+import sys
 
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+import config
 
 
 def crop_to_mask(image, mask):
@@ -64,7 +67,8 @@ def get_centroid_of_mask(mask):
 
 
 def pad_to_fit_patches_with_centroid(image, mask, centroid, patch_size=16, bg_color=(245, 245, 245, 255)):
-    """ Pad the image to patchifyable size, such the the centroid is in the middle of patch (0,0). Since there is no
+    """ 
+    Pad the image to patchifyable size, such the the centroid is in the middle of patch (0,0). Since there is no
     center pixel in the patch (16, 16), the centroid is pixel (8,8) (right bottom of 4 center pixels).
     
     Parameters:
@@ -76,7 +80,8 @@ def pad_to_fit_patches_with_centroid(image, mask, centroid, patch_size=16, bg_co
     
     Returns:
         padded_image (PIL.Image): The padded image.
-        padded_mask (PIL.Image): The padded mask. """
+        padded_mask (PIL.Image): The padded mask. 
+    """
 
     # get image size
     w, h = image.size
@@ -122,17 +127,19 @@ def pad_to_fit_patches_with_centroid(image, mask, centroid, patch_size=16, bg_co
 
 
 def rotate_image_with_correct_padding(image, mask, angle):
-    """ Rotate the image by the given angle and return the rotated image. The background 
+    """ 
+    Rotate the image by the given angle and return the rotated image. The background 
     color is set to (245, 245, 245). The image is centered on a square canvas.
 
     Parameters:
-    image (PIL.Image): The image to be rotated.
-    mask (PIL.Image): The mask to be rotated.
-    angle (float): The angle to rotate the image.
+        image (PIL.Image): The image to be rotated.
+        mask (PIL.Image): The mask to be rotated.
+        angle (float): The angle to rotate the image.
 
     Returns:
-    padded_image (PIL.Image): The rotated image with padding.
-    padded_mask (PIL.Image): The rotated mask with padding. """
+        padded_image (PIL.Image): The rotated image with padding.
+        padded_mask (PIL.Image): The rotated mask with padding. 
+    """
 
     if image.mode != "RGBA":
         image = image.convert("RGBA")
@@ -157,12 +164,12 @@ def rotate_image_with_correct_padding(image, mask, angle):
 
 if __name__ == "__main__":
 
-    # Load the configuration
-    rotation_info_path = 'data/image_rotations/padding_rotations_ihc.json'
-    original_images_path = '../tissue_alignment/data/images/IHC_crops_masked'
-    original_masks_path = '../tissue_alignment/data/annotations/IHC_crops'
-    rotated_images_path = 'data/IHC_rotated'
-    rotated_masks_path = 'data/IHC_rotated_masks'
+    # Load the configuration (change from ihc to he if needed)
+    rotation_info_path = config.rotation_file_ihc  # Path to the JSON file with rotation info
+    original_images_path = config.ihc_images_raw  # Path to the directory with original images
+    original_masks_path = config.ihc_masks_raw  # Path to the directory with original masks
+    rotated_images_path = config.ihc_images_rotated  # Path to the directory with rotated images
+    rotated_masks_path = config.ihc_masks_rotated  # Path to the directory with rotated masks
 
     # Load the rotation info
     with open(rotation_info_path, 'r') as f:

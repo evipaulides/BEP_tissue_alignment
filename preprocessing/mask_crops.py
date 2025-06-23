@@ -1,8 +1,21 @@
 import os
 from PIL import Image
 from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+import config
 
 def replace_background(images_path, masks_path, output_path, bg_color=(245, 245, 245)):
+    """
+    Replace the background of images with a specified color using corresponding masks and save the results.
+
+    Parameters:
+    images_path (str or Path): Path to the directory containing images.
+    masks_path (str or Path): Path to the directory containing masks.
+    output_path (str or Path): Path to save the output images with replaced backgrounds.
+    bg_color (tuple): RGB color to use as the background (default is light gray).
+    """
     images_path = Path(images_path)
     masks_path = Path(masks_path)
     output_path = Path(output_path)
@@ -34,9 +47,9 @@ def replace_background(images_path, masks_path, output_path, bg_color=(245, 245,
 
 
 if __name__ == "__main__":
-    # VARIABLES
-    images_path = "C:/Users/20223399/OneDrive - TU Eindhoven/TUe Biomedical Engineering/Year 3/Q4/BEP_tissue_alignment/tissue_alignment/data/images/IHC_crops"  # Path to the directory containing images
-    masks_path = "C:/Users/20223399/OneDrive - TU Eindhoven/TUe Biomedical Engineering/Year 3/Q4/BEP_tissue_alignment/tissue_alignment/data/annotations/IHC_crops"  # Path to the directory containing masks
-    output_path = "C:/Users/20223399/OneDrive - TU Eindhoven/TUe Biomedical Engineering/Year 3/Q4/BEP_tissue_alignment/tissue_alignment/data/images/IHC_crops_masked"  # Path to save the output images
+    # configure paths
+    images_path = config.ihc_images_raw  # Path to the directory containing images
+    masks_path = config.ihc_masks_raw  # Path to the directory containing masks
+    output_path = config.ihc_images_masked  # Path to save the output images
 
     replace_background(images_path, masks_path, output_path)

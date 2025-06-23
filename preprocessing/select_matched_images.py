@@ -1,13 +1,20 @@
 import os
 import json
 import shutil
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+import config
+
+""" This script selects matched HE and IHC images based on a JSON file containing matches."""
 
 # ==== CONFIG ====
-json_path = "data/image_matches/image_matches.json"  # Path to your JSON file
-source_he_folder = "data/HE_rotated"  # Folder containing original HE images
-source_ihc_folder = "data/IHC_rotated"  # Folder containing original IHC images
-dest_he_folder = "data/HE_images_matched"  # Destination folder for matched HE images
-dest_ihc_folder = "data/IHC_images_matched"  # Destination folder for matched IHC images
+json_path = config.matches_file  # Path to your JSON file
+source_he_folder = config.he_images_rotated  # Folder containing original HE images
+source_ihc_folder = config.ihc_images_rotated  # Folder containing original IHC images
+dest_he_folder = config.he_dir  # Destination folder for matched HE images
+dest_ihc_folder = config.ihc_dir  # Destination folder for matched IHC images
 # ================
 
 # Make sure destination folders exist
